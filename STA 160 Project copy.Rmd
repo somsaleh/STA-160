@@ -1,0 +1,118 @@
+---
+title: "STA 160 Project"
+author: "Jessica Padolina"
+date: "4/30/2017"
+output: html_document
+---
+Mapping Crimes in Major Cities
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE}
+setwd("/Users/Jessica/Documents/Stats Stuff")
+la_crime = read.csv("la_crime.csv")
+
+#Renaming variables for convenience
+names(la_crime)[24]="Location"
+names(la_crime)[26]="Coordinates"
+```
+
+Subsetting violent and drug-related crimes only
+```{r}
+levels(la_crime$Crime.Code.Desc)
+```
+We only want the following crime codes:
+{231,230,220,118,622,623,860,840,755,761,235,627,922,110,930,943,753,865,434,910,920,435,436,113,625,122,121,210,815,251,250,236,626,928,756}
+These codes are violent crimes, so this list will be called "violent_index"
+
+CLEANING DATA
+```{r}
+#Subsetting the data to contain violent and drug-related crimes only
+library(sqldf)
+#Renaming variables for sqldf()
+names(la_crime)[8] = "Crime_Code"
+names(la_crime)[9] = "Crime_Code_Desc"
+
+#Matching distinct crime codes to their descriptions
+s = sqldf("SELECT DISTINCT Crime_Code, Crime_Code_Desc 
+          FROM la_crime 
+          GROUP BY Crime_Code_Desc")
+
+#Subsetting data by crime codes in the above index
+la_violent = sqldf("SELECT * FROM la_crime
+                   WHERE Crime_Code IN (231,230,220,118,622,623,860,840,755,761,235,627,922,110,930,943,753,865,434,910,920,435,436,113,625,122,121,210,815,251,250,236,626,928,756)")
+
+attach(la_violent)
+
+#Splitting the Coordinates column into two lat and lon columns (character   matrix)
+library(stringr)
+latlon = str_split_fixed(Coordinates, " ", 2)
+latlon[,1] = gsub("\\(", "", latlon[,1])
+latlon[,1] = gsub(",", "", latlon[,1])
+latlon[,2] = gsub("\\)", "", latlon[,2])
+
+#Converting to numeric class
+latlon = apply(latlon, 2, as.numeric)
+
+#Binding new latlon matrix to la_violent dataframe
+la_violent[,c("lat","lon")] <- latlon
+
+attach(la_violent)
+```
+
+DATA EXPLORATION
+```{r}
+#MAPPING LA CRIME
+#See STA 141A Lecture 11 slides
+library(ggmap)
+
+#Creating Year column
+Year = substr(Date.Occurred, 7, 10)
+la_violent["Year"] <- Year
+attach(la_violent)
+
+#Subsetting crimes by year
+la_2010 = subset(la_violent, Year = "2010")
+la_2011 = subset(la_violent, Year = "2011")
+la_2012 = subset(la_violent, Year = "2012")
+la_2013 = subset(la_violent, Year = "2013")
+la_2014 = subset(la_violent, Year = "2014")
+la_2015 = subset(la_violent, Year = "2015")
+la_2016 = subset(la_violent, Year = "2016")
+la_2017 = subset(la_violent, Year = "2017")
+
+#Problem: Oversaturation of points if use qmplot for each year
+#Possible solutions:
+  #Heatmap
+  #Subsetting by type of crime
+  #Dots with relative size
+
+#To solve the issue of oversaturation, use of contour plots:
+
+la = get_map("los angeles", zoom = 10, maptype = "roadmap")
+
+testplot = ggmap(la) + geom_point(color = factor(Area.ID), data = la_2010, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2010)
+ggmap(la) + geom_point(color = factor(Area.ID), data = la_2011, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2011)
+ggmap(la) + geom_point(color = factor(Area.ID), data = la_2012, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2012)
+ggmap(la) + geom_point(color = factor(Area.ID), data = la_2013, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2013)
+ggmap(la) + geom_point(color = factor(Area.ID), data = la_2014, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2014)
+ggmap(la) + geom_point(color = factor(Area.ID), data = la_2015, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2015)
+ggmap(la) + geom_point(color = factor(Area.ID), data = la_2016, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2016)
+ggmap(la) + geom_point(color = factor(Area.ID), data = la_2017, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2017)
+#scale_x_continuous(limits = c(33.34, 34.31)) + scale_y_continuous(limits = c(-118.86, -117.7196))
+#These limits were found using sort(lat) and sort(lon) and finding the mins and maxes that aren't 0.
+
+#Possible next steps:
+#Do for remaining years
+#LABEL AREAS
+#Subset by type of crime
+#Color by gender/race of victim (ditch area id)
+#Animated plot rather than multiple plots per panel
+#Include boundaries, multiple variables per map
+#Consider distorting map to account for population density (cartogram)
+
+#Further subsetting by types of violent crime
+#Types: 
+
+```
