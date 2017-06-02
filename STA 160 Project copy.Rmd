@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r, echo = FALSE}
-setwd("/Users/Jessica/Documents/Stats Stuff")
+setwd("/Users/Jessica/Documents/Stats Stuff/STA-160")
 la_crime = read.csv("la_crime.csv")
 
 #Renaming variables for convenience
@@ -19,9 +19,7 @@ names(la_crime)[26]="Coordinates"
 ```
 
 Subsetting violent and drug-related crimes only
-```{r}
-levels(la_crime$Crime.Code.Desc)
-```
+
 We only want the following crime codes:
 {231,230,220,118,622,623,860,840,755,761,235,627,922,110,930,943,753,865,434,910,920,435,436,113,625,122,121,210,815,251,250,236,626,928,756}
 These codes are violent crimes, so this list will be called "violent_index"
@@ -59,14 +57,50 @@ latlon = apply(latlon, 2, as.numeric)
 la_violent[,c("lat","lon")] <- latlon
 
 attach(la_violent)
+
+#Deleting outliers (too far east of main incidences)
+la_violent = subset(la_violent, lon < -118.1)
+
+attach(la_violent)
 ```
 
 DATA EXPLORATION
+Preparing tract boundaries
 ```{r}
 #MAPPING LA CRIME
 #See STA 141A Lecture 11 slides
+#Loading a s***-ton of packages because I am struggling with this ah why does this take so long to figure out
 library(ggmap)
+#Did not include ggplot2, as calling ggmap should auto-load it in R.
+library(gpclib)
+library(maptools)
+library(rgdal)
+library(rgeos)
+library(dplyr)
+library(plyr)
+library(scales)
+library(Cairo)
+library(raster)
 
+#Preparing boundary shapefile
+
+#Can't figure out how to map above work. So, new help source: http://www.kevjohnson.org/making-maps-in-r/ (Code "Version 2")
+
+tract2 <- readOGR(dsn = ".", layer = "census2010")
+tract2 <- spTransform(x=tract, CRSobj=CRS("+proj=longlat +datum=WGS84"))
+tract2 <- fortify(tract2, region = "GEOID10")
+#Joining crime_tract and tract2 on tract id's
+colnames(tract2)[6] = "GEOID10"
+plotdata = left_join(tract2, crime_tract)
+
+p <- ggplot() +
+    geom_polygon(data = plotdata, aes(x = long, y = lat, group = group,
+        fill = count), color = "black", size = 0.25)
+ggsave(p, file = "map1.png", width = 6, height = 4.5, type = "cairo-png")
+```
+
+CLEANING DATA
+```{r}
 #Creating Year column
 Year = substr(Date.Occurred, 7, 10)
 la_violent["Year"] <- Year
@@ -82,17 +116,9 @@ la_2015 = subset(la_violent, Year = "2015")
 la_2016 = subset(la_violent, Year = "2016")
 la_2017 = subset(la_violent, Year = "2017")
 
-#Problem: Oversaturation of points if use qmplot for each year
-#Possible solutions:
-  #Heatmap
-  #Subsetting by type of crime
-  #Dots with relative size
-
 #To solve the issue of oversaturation, use of contour plots:
 
-la = get_map("los angeles", zoom = 10, maptype = "roadmap")
-
-testplot = ggmap(la) + geom_point(color = factor(Area.ID), data = la_2010, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2010)
+testplot = ggmap(la) + geom_point(color = factor(Area.ID), data = la_2010, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2010) + scale_x_continuous(limits = c(-118.7668, -118.1), expand = c(0,0))
 ggmap(la) + geom_point(color = factor(Area.ID), data = la_2011, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2011)
 ggmap(la) + geom_point(color = factor(Area.ID), data = la_2012, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2012)
 ggmap(la) + geom_point(color = factor(Area.ID), data = la_2013, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2013)
@@ -104,15 +130,20 @@ ggmap(la) + geom_point(color = factor(Area.ID), data = la_2017, size = 0.05) + s
 #These limits were found using sort(lat) and sort(lon) and finding the mins and maxes that aren't 0.
 
 #Possible next steps:
-#Do for remaining years
-#LABEL AREAS
+#Center maps
+#Include boundaries, multiple variables per map
 #Subset by type of crime
+#Do for remaining years
 #Color by gender/race of victim (ditch area id)
 #Animated plot rather than multiple plots per panel
-#Include boundaries, multiple variables per map
 #Consider distorting map to account for population density (cartogram)
+#Finalize exploratory data analysis for LA
+#See what patterns you can recognize, continue analysis using that
 
 #Further subsetting by types of violent crime
 #Types: 
+
+#To include on animated plot:
+
 
 ```
