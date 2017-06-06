@@ -69,42 +69,19 @@ Preparing tract boundaries
 ```{r}
 #MAPPING LA CRIME
 #See STA 141A Lecture 11 slides
-#Loading a s***-ton of packages because I am struggling with this ah why does this take so long to figure out
+#Loading packages
 library(ggmap)
-#Did not include ggplot2, as calling ggmap should auto-load it in R.
-library(gpclib)
-library(maptools)
 library(rgdal)
-library(rgeos)
-library(dplyr)
-library(plyr)
 library(scales)
+library(dplyr)
 library(Cairo)
-library(raster)
 
 #Preparing boundary shapefile
 
-#Can't figure out how to map above work. So, new help source: http://www.kevjohnson.org/making-maps-in-r/ (Code "Version 2")
-
-tract2 <- readOGR(dsn = ".", layer = "census2010")
-tract2 <- spTransform(x=tract, CRSobj=CRS("+proj=longlat +datum=WGS84"))
-tract2 <- fortify(tract2, region = "GEOID10")
-#Joining crime_tract and tract2 on tract id's
-colnames(tract2)[6] = "GEOID10"
-plotdata = left_join(tract2, crime_tract)
-
-p <- ggplot() +
-    geom_polygon(data = plotdata, aes(x = long, y = lat, group = group,
-        fill = count), color = "black", size = 0.25)
-ggsave(p, file = "map1.png", width = 6, height = 4.5, type = "cairo-png")
-```
-
-CLEANING DATA
-```{r}
-#Creating Year column
-Year = substr(Date.Occurred, 7, 10)
-la_violent["Year"] <- Year
-attach(la_violent)
+#Help from: https://stackoverflow.com/questions/29872109/binning-longitude-latitude-labeled-data-by-census-block-id (Code "Version 1")
+tract <- readOGR(dsn = ".", layer = "census2010")
+tract <- spTransform(x=tract, CRSobj=CRS("+proj=longlat +datum=WGS84"))
+#tract <- fortify(tract, region = "GEOID10")
 
 #Subsetting crimes by year
 la_2010 = subset(la_violent, Year = "2010")
@@ -116,18 +93,134 @@ la_2015 = subset(la_violent, Year = "2015")
 la_2016 = subset(la_violent, Year = "2016")
 la_2017 = subset(la_violent, Year = "2017")
 
-#To solve the issue of oversaturation, use of contour plots:
+#Subsetting data
+lonlat.df10 <- data.frame(lat = la_2010$lat, lon = la_2010$lon)
+lonlat.df11 <- data.frame(lat = la_2011$lat, lon = la_2011$lon)
+lonlat.df12 <- data.frame(lat = la_2012$lat, lon = la_2012$lon)
+lonlat.df13 <- data.frame(lat = la_2013$lat, lon = la_2013$lon)
+lonlat.df14 <- data.frame(lat = la_2014$lat, lon = la_2014$lon)
+lonlat.df15 <- data.frame(lat = la_2015$lat, lon = la_2015$lon)
+lonlat.df16 <- data.frame(lat = la_2016$lat, lon = la_2016$lon)
+lonlat.df17 <- data.frame(lat = la_2017$lat, lon = la_2017$lon)
 
-testplot = ggmap(la) + geom_point(color = factor(Area.ID), data = la_2010, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2010) + scale_x_continuous(limits = c(-118.7668, -118.1), expand = c(0,0))
-ggmap(la) + geom_point(color = factor(Area.ID), data = la_2011, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2011)
-ggmap(la) + geom_point(color = factor(Area.ID), data = la_2012, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2012)
-ggmap(la) + geom_point(color = factor(Area.ID), data = la_2013, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2013)
-ggmap(la) + geom_point(color = factor(Area.ID), data = la_2014, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2014)
-ggmap(la) + geom_point(color = factor(Area.ID), data = la_2015, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2015)
-ggmap(la) + geom_point(color = factor(Area.ID), data = la_2016, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2016)
-ggmap(la) + geom_point(color = factor(Area.ID), data = la_2017, size = 0.05) + stat_density2d(aes(x = lon, y = lat), data = la_2017)
-#scale_x_continuous(limits = c(33.34, 34.31)) + scale_y_continuous(limits = c(-118.86, -117.7196))
-#These limits were found using sort(lat) and sort(lon) and finding the mins and maxes that aren't 0.
+#Converting data into a spatial points object
+la_spdf10 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
+                                  data=la_2010, proj4string=CRS("+proj=longlat +datum=WGS84"))
+la_spdf11 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
+                                  data=la_2011, proj4string=CRS("+proj=longlat +datum=WGS84"))
+la_spdf12 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
+                                  data=la_2012, proj4string=CRS("+proj=longlat +datum=WGS84"))
+la_spdf13 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
+                                  data=la_2013, proj4string=CRS("+proj=longlat +datum=WGS84"))
+la_spdf14 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
+                                  data=la_2014, proj4string=CRS("+proj=longlat +datum=WGS84"))
+la_spdf15 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
+                                  data=la_2015, proj4string=CRS("+proj=longlat +datum=WGS84"))
+la_spdf16 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
+                                  data=la_2016, proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+la_spdf17 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
+                                  data=la_2017, proj4string=CRS("+proj=longlat +datum=WGS84"))
+
+#Adding count column (each row is one crime incident)
+la_spdf10@data$count <- 1
+la_spdf11@data$count <- 1
+la_spdf12@data$count <- 1
+la_spdf13@data$count <- 1
+la_spdf14@data$count <- 1
+la_spdf15@data$count <- 1
+la_spdf16@data$count <- 1
+la_spdf17@data$count <- 1
+
+#Spatial overlay to identify census polygon in which each crime point falls
+la_spdf_tract10 <- over(x=la_spdf10, y=tract)
+la_spdf_tract11 <- over(x=la_spdf11, y=tract)
+la_spdf_tract12 <- over(x=la_spdf12, y=tract)
+la_spdf_tract13 <- over(x=la_spdf13, y=tract)
+la_spdf_tract14 <- over(x=la_spdf14, y=tract)
+la_spdf_tract15 <- over(x=la_spdf15, y=tract)
+la_spdf_tract16 <- over(x=la_spdf16, y=tract)
+la_spdf_tract17 <- over(x=la_spdf17, y=tract)
+
+#Adding tract data to crime points
+la_spdf10@data <- data.frame(la_spdf10@data, la_spdf_tract10)
+la_spdf11@data <- data.frame(la_spdf11@data, la_spdf_tract11)
+la_spdf12@data <- data.frame(la_spdf12@data, la_spdf_tract12)
+la_spdf13@data <- data.frame(la_spdf13@data, la_spdf_tract13)
+la_spdf14@data <- data.frame(la_spdf14@data, la_spdf_tract14)
+la_spdf15@data <- data.frame(la_spdf15@data, la_spdf_tract15)
+la_spdf16@data <- data.frame(la_spdf16@data, la_spdf_tract16)
+la_spdf17@data <- data.frame(la_spdf17@data, la_spdf_tract17)
+
+#Aggregate crimes by tract
+crime_tract10 <- aggregate(formula=count~GEOID10, data=la_spdf10@data, FUN=length)
+crime_tract11 <- aggregate(formula=count~GEOID10, data=la_spdf11@data, FUN=length)
+crime_tract12 <- aggregate(formula=count~GEOID10, data=la_spdf12@data, FUN=length)
+crime_tract13 <- aggregate(formula=count~GEOID10, data=la_spdf13@data, FUN=length)
+crime_tract14 <- aggregate(formula=count~GEOID10, data=la_spdf14@data, FUN=length)
+crime_tract15 <- aggregate(formula=count~GEOID10, data=la_spdf15@data, FUN=length)
+crime_tract16 <- aggregate(formula=count~GEOID10, data=la_spdf16@data, FUN=length)
+crime_tract17 <- aggregate(formula=count~GEOID10, data=la_spdf17@data, FUN=length)
+
+#Adding Year column to each crime_tract dataframe
+year10 <- rep("2010-12-31")
+year11 <- rep("2011-12-31")
+year12 <- rep("2012-12-31")
+year13 <- rep("2013-12-31")
+year14 <- rep("2014-12-31")
+year15 <- rep("2015-12-31")
+year16 <- rep("2016-12-31")
+year17 <- rep("2017-12-31")
+
+cbind()
+
+#Help source: http://www.kevjohnson.org/making-maps-in-r/
+#Joining crime_tract and tract on tract id's
+colnames(tract)[6] = "GEOID10"
+plotdata = left_join(tract, crime_tract)
+
+#Plotting for 2010
+p <- ggplot() +
+    geom_polygon(data = plotdata, aes(x = long, y = lat, group = group,
+        fill = count), color = "black", size = 0.25)
+ggsave(p, file = "map1.png", width = 6, height = 4.5, type = "cairo-png")
+```
+
+Plotting LA census tracts on map object
+```{r}
+library(maptools)
+library(RColorBrewer)
+CArea = readShapePoly("census2010")
+CArea <- spTransform(x=tract, CRSobj=CRS("+proj=longlat +datum=WGS84"))
+area.points <- fortify(CArea)
+la = get_map("Los Angeles, CA")
+ggmap(la)
+colors <- brewer.pal(9, "BuGn")
+ggmap(la) + geom_polygon(aes(x = long,
+                   y = lat,
+                   group = group),
+               data = area.points,
+               color = colors[9],
+               fill = colors[6],
+               alpha = 0.5) +
+  labs(x = "Longitude",
+       y = "Latitude")
+```
+
+Animating counts of crimes per tract over time
+```{r}
+#0. Finish making crime_tract dataframes
+#1. Add date column to each crime_tract dataframe
+#2. Combine all crime_tract dataframes into one yearly_counts dataframe
+
+```
+
+CLEANING DATA
+```{r}
+#Creating Year column
+Year = substr(Date.Occurred, 7, 10)
+la_violent["Year"] <- Year
+attach(la_violent)
 
 #Possible next steps:
 #Center maps
