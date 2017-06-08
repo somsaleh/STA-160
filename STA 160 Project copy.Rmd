@@ -172,49 +172,21 @@ la_spdf17@data <- data.frame(la_spdf17@data, la_spdf_tract17)
 
 #Aggregate crimes by tract
 agg = function(x) {
-  y = aggregate(formula=count~GEOID10, data=x@data, FUN=length)
+  y = aggregate(formula=count~GEOID10+Year, data=x@data, FUN=length)
   return(y)
 }
 
-crime_tract10 <- agg(la_spdf10)
-crime_tract11 <- agg(la_spdf11)
-crime_tract12 <- agg(la_spdf12)
-crime_tract13 <- agg(la_spdf13)
-crime_tract14 <- agg(la_spdf14)
-crime_tract15 <- agg(la_spdf15)
-crime_tract16 <- agg(la_spdf16)
-crime_tract17 <- agg(la_spdf17)
-
-#Adding Year column to each crime_tract dataframe
-year10 <- rep("2010-12-31", length(crime_tract10[,1]))
-year11 <- rep("2011-12-31", length(crime_tract11[,1]))
-year12 <- rep("2012-12-31", length(crime_tract12[,1]))
-year13 <- rep("2013-12-31", length(crime_tract13[,1]))
-year14 <- rep("2014-12-31", length(crime_tract14[,1]))
-year15 <- rep("2015-12-31", length(crime_tract15[,1]))
-year16 <- rep("2016-12-31", length(crime_tract16[,1]))
-year17 <- rep("2017-12-31", length(crime_tract17[,1]))
-
-#Binding year columns to crime_tract dataframes
-ct10 = cbind(year10, crime_tract10)
-ct11 = cbind(year11, crime_tract11)
-ct12 = cbind(year12, crime_tract12)
-ct13 = cbind(year13, crime_tract13)
-ct14 = cbind(year14, crime_tract14)
-ct15 = cbind(year15, crime_tract15)
-ct16 = cbind(year16, crime_tract16)
-ct17 = cbind(year17, crime_tract17)
-
-#Renaming year columns to make them homogenous (for merging purposes)
-ct.list <- list(ct10,ct11,ct12,ct13,ct14,ct15,ct16,ct17)
-
-ChangeNames <- function(x) {
-    names(x)[1] <- "year"
-    return(x)
-}
-ct.list <- lapply(ct.list, ChangeNames)
+ct10 <- agg(la_spdf10)
+ct11 <- agg(la_spdf11)
+ct12 <- agg(la_spdf12)
+ct13 <- agg(la_spdf13)
+ct14 <- agg(la_spdf14)
+ct15 <- agg(la_spdf15)
+ct16 <- agg(la_spdf16)
+ct17 <- agg(la_spdf17)
 
 #Merging all elements in ct.list
+ct.list <- list(ct10,ct11,ct12,ct13,ct14,ct15,ct16,ct17)
 ct = ct.list[[1]]
 for (i in 2:length(ct.list)) {
   ct = rbind(ct, ct.list[[i]])
@@ -222,8 +194,39 @@ for (i in 2:length(ct.list)) {
 }
 
 #Sorting ct by Tract ID, then by Year (descending)
-ct = sqldf("SELECT * FROM ct ORDER BY GEOID10, year DESC;")
-  
+ct = sqldf("SELECT * FROM ct ORDER BY GEOID10, Year DESC;")
+
+#Help from: http://rmaps.github.io/blog/posts/animated-choropleths/
+#Discretizing crime counts. We will assign 5 quantiles to the continuous values of "count" (counts of crimes)
+ct2 <- transform(ct,
+  fillKey = cut(count, quantile(count, seq(0, 1, 1/5)), labels = LETTERS[1:5])
+)
+
+#Associating fill colors
+fills = setNames(
+  c(RColorBrewer::brewer.pal(5, 'YlOrRd'), 'white'),
+  c(LETTERS[1:5], 'defaultFill')
+)
+
+#Creating payload for DataMaps
+#According to help source: "The data frame needs to be converted into a list of lists, as it is the default data structure that the DataMaps library accepts."
+
+library(plyr)
+require(devtools)
+install_github('ramnathv/rCharts@dev')
+install_github('ramnathv/rMaps')
+library(rMaps)
+library(rCharts)
+
+dat2 <- dlply(na.omit(ct2), "Year", function(x){
+  y = toJSONArray2(x, json = F)
+  names(y) = lapply(y, '[[', 'GEOID10')
+  return(y)
+})
+```
+
+Separate mapping step
+```{r}
 #Help source: http://www.kevjohnson.org/making-maps-in-r/
 #Joining crime_tract and tract on tract id's
 colnames(tract)[6] = "GEOID10"
