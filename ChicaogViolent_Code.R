@@ -24,27 +24,20 @@ Robbery  = subset(Violent, Violent$`Primary Type` ==  "ROBBERY")
 
 
 # set and dl library
-install.packages("audiolyzR")
 install.packages("data.table")
 install.packages("RColorBrewer")
 install.packages("plotly")
-install.packages("sonify")
 install.packages("leaflet")
 install.packages("tidyr")
-install.packages("zoo")
 install.packages("RgoogleMaps")
-install.packages("readOGR")
 install.packages("maptools")
 install.packages("ggmap")
-install.packages("rgdal")
 
-library(audiolyzR)
+
 library(data.table)
 library(RColorBrewer)
 library(lattice)
 library(plotly)
-library(zoo)
-library(sonify)
 library(leaflet)
 library(tidyr)
 library(lattice)
@@ -52,11 +45,6 @@ library(RgoogleMaps)
 library(maptools)
 library(ggmap)
 library(ggplot2)
-library(readOGR)
-library(rgdal)
-library(gpclib)
-library(raster)
-
 
 
 
@@ -119,77 +107,134 @@ TimeSeriesPlot =
 
 
 
-## Barplot 
+## Barchart Analysis
 
-# Battery Analysis # 
- 
- #  Creating a table
-# BType = table(Battery$`Community Area`, Battery$MonYr) # by month
- 
- BType = table(Battery$`Community Area`, Battery$Year) # by year
+# Step 1) 
+#  * Table to Dataframe Function * # 
 
- BType = data.frame(BType) # create the dataset for by year 
+VType = function(VTypeName, dataVar1, dataVar2){
+  # create table by year
+  VTypeName = table(dataVar1, dataVar2)   
  
- colnames(BType) = c("Area", "Year", "Count") # rename the columns
+   # create dataset for the table
+  VTypeName = data.frame(VTypeName)
+  
+  # change column names
+  colnames(VTypeName) = c("Area", "Year", "Count") 
+  
+  ## Pivot the table 
+  Pivot = spread(VTypeName, Year, Count) 
+  Pivot
+}
+
+
+# Step 2
+# Now create the pivoted data frames for each violent crime
+BPivot = VType(BType, Battery$`Community Area` , Battery$Year)   # Battery
+APivot = VType(AType, Assault$`Community Area` , Assault$Year)   # Assault
+HPivot = VType(HType, Homicide$`Community Area`, Homicide$Year)  # Homicide
+RPivot = VType(RType, Robbery$`Community Area` , Robbery$Year)   # Robbery 
+
+
+#Step 3
+#  * Barchart Function * # 
+# The function will later be used for the 4 diff violent crimes
+
+ChartFunc =  
+  # The function will read in each pivoted df
+  # input each Var1 etc represent each var per year in the df
+  function(chartName, titleName, data, dataVar1, dataVar2,
+                      dataVar3, dataVar4, dataVar5, dataVar6,
+                      dataVar7, dataVar8, dataVar9) { 
+  
+  chartName = 
+    
+    # use Plotly functions
+    plot_ly(data, x = dataVar1) %>%
+    add_bars(y = dataVar2, name = "2010") %>% # allows you to continue and start new line 
+    add_bars(y = dataVar3, name = "2011", visible = FALSE) %>% # add each bar for each year
+    add_bars(y = dataVar4, name = "2012", visible = FALSE) %>%
+    add_bars(y = dataVar5, name = "2013", visible = FALSE) %>%
+    add_bars(y = dataVar6, name = "2014", visible = FALSE) %>%
+    add_bars(y = dataVar7, name = "2015", visible = FALSE) %>%
+    add_bars(y = dataVar8, name = "2016", visible = FALSE) %>%
+    add_bars(y = dataVar9, name = "2017", visible = FALSE) %>%
+    layout(
+      # Set up the layout 
+      title = titleName, 
+      xaxis = list(domain = c(0.1, 1)),
+      yaxis = list(title = "Frequency"),
+      updatemenus = list(
+        list(
+          y = 0.7,
+          
+          # Set up the drop down button per year
+          # this will allow the user to control which year to view at a time
+          
+          buttons = list(
+            list(method = "restyle",
+                 args = list("visible", list(TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE)),
+                 
+                 label = "2010"),
+            list(method = "restyle",
+                 args = list("visible", list(FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE)),
+                 label = "2011"),
+            list(method = "restyle",
+                 args = list("visible", list(FALSE, FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE)),
+                 label = "2012"),
+            list(method = "restyle",
+                 args = list("visible", list(FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, FALSE, FALSE)),
+                 label = "2013"),
+            list(method = "restyle",
+                 args = list("visible", list(FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, FALSE)),
+                 label = "2014"),
+            list(method = "restyle",
+                 args = list("visible", list(FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE)),
+                 label = "2015"),
+            list(method = "restyle",
+                 args = list("visible", list(FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE)),
+                 label = "2016"),
+            list(method = "restyle",
+                 args = list("visible", list(FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, TRUE)),
+                 label = "2017")))
+      )
+    ) 
+  chartName
+}
+
+# Step 4
+# Output for the barchart per Violent Crime
+
+AssaultChart = 
+ChartFunc(AssaultChart2, "Assault Crime per Community Area",  
+          APivot, APivot$Area, APivot$`2010`, APivot$`2011`,
+          APivot$`2012`, APivot$`2013`, APivot$`2014`, 
+          APivot$`2015`, APivot$`2016`, APivot$`2017`)
+
+BatteryChart = 
+  ChartFunc(BatteryChart2, "Battery Crime per Community Area",
+            BPivot, BPivot$Area, BPivot$`2010`, BPivot$`2011`,
+            BPivot$`2012`, BPivot$`2013`, BPivot$`2014`, 
+            BPivot$`2015`, BPivot$`2016`, BPivot$`2017`)
+
+HomicideChart = 
+  ChartFunc(HomicideChart2, "Homicide Crime per Community Area",
+            HPivot, HPivot$Area, HPivot$`2010`, HPivot$`2011`,
+            HPivot$`2012`, HPivot$`2013`, HPivot$`2014`, 
+            HPivot$`2015`, HPivot$`2016`, HPivot$`2017`)
+
+RobberyChart = 
+  ChartFunc(RobberyChart2, "Robbery Crime per Community Area",
+            RPivot, RPivot$Area, RPivot$`2010`, RPivot$`2011`,
+            RPivot$`2012`, RPivot$`2013`, RPivot$`2014`,
+            RPivot$`2015`, RPivot$`2016`, RPivot$`2017`)
+
+AssaultChart
+BatteryChart
+HomicideChart
+RobberyChart
+
  
-# BType$Date = as.character(BType$Date) # change the class of the variable
- 
- # run the function to get aggregated date (only use this when BType is table of MonYr )
- #BType$date = monthly(BType$Date) 
- 
- # Pivot the table by Year
- BPivot = spread(BType, Year, Count)
- #BPivot  = BPivot[order(BPivot$date), ]
- #BType  = BType[order(BType$date), ]
- 
- 
-#  Create the Chart
- BatteryChart  = 
-        
- plot_ly(BPivot, x = BPivot$Area) %>%
-   add_bars(y = sort(BPivot$`2010`, decreasing = TRUE), name = "2010") %>%
-   add_bars(y = sort(BPivot$`2011`, decreasing = TRUE), name = "2011", visible = FALSE) %>%
-   add_bars(y = sort(BPivot$`2012`, decreasing = TRUE), name = "2012", visible = FALSE) %>%
-   add_bars(y = sort(BPivot$`2013`, decreasing = TRUE), name = "2013", visible = FALSE) %>%
-   add_bars(y = sort(BPivot$`2014`, decreasing = TRUE), name = "2014", visible = FALSE) %>%
-   add_bars(y = sort(BPivot$`2015`, decreasing = TRUE), name = "2015", visible = FALSE) %>%
-   add_bars(y = sort(BPivot$`2016`, decreasing = TRUE), name = "2016", visible = FALSE) %>%
-   add_bars(y = sort(BPivot$`2017`, decreasing = TRUE), name = "2017", visible = FALSE) %>%
-   layout(
-     title = "Battery In Community Areas Per Year",
-     xaxis = list(domain = c(0.1, 1)),
-     yaxis = list(title = "Frequency"),
-     updatemenus = list(
-       list(
-         y = 0.7,
-         buttons = list(
-           list(method = "restyle",
-                args = list("visible", list(TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE)),
-                label = "2010"),
-           list(method = "restyle",
-                args = list("visible", list(FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE)),
-                label = "2011"),
-           list(method = "restyle",
-                args = list("visible", list(FALSE, FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE)),
-                label = "2012"),
-           list(method = "restyle",
-                args = list("visible", list(FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, FALSE, FALSE)),
-                label = "2013"),
-           list(method = "restyle",
-                args = list("visible", list(FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, FALSE)),
-                label = "2014"),
-           list(method = "restyle",
-                args = list("visible", list(FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE)),
-                label = "2015"),
-           list(method = "restyle",
-                args = list("visible", list(FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE)),
-                label = "2016"),
-           list(method = "restyle",
-                args = list("visible", list(FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, TRUE)),
-                label = "2017")))
-     )
-   )
-        
  
 ########
 
