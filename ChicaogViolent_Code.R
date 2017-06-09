@@ -235,66 +235,6 @@ ggmap(CHi) + geom_polygon(aes(x = long, y = lat,
 
 
 
-#  Second way to read in shape file, 
-#a = readShapeSpatial("geo_export_1cecd1d2-ae2d-4c08-a216-6154cbcc2077")
-# plot the shape 
-#plot(a, axes = TRUE, border = "black")
-
-# add the labels to the map , use as reference
-#text(coordinates(CArea), labels = CArea$area_numbe)
-
-
-# Combine the Spatial Data with the Crime Data
-
-# now combine the shape file with the data
-  #vc = subset(Violent, Year == "2010")
-  #vc = subset(vc, vc$`Primary Type` == "BATTERY")
-   #  vc$count <- 1
-  
-#Subsetting data
-#lonlat.df10 <- data.frame(lat = vc$lat, lon = vc$lon)
-
-
-#Convert crime data to a spatial points object
-#vc1 <- SpatialPointsDataFrame(coords= vc[, c("longitude", "latitude")],
-                                 # data=vc[, c("Year", "Community", "type", "arrest")],)
-
-#chi_spdf10 <- SpatialPointsDataFrame(coords = lonlat.df10[, c("lon", "lat")],
-                                    #data= vc)
-#vc_tract <- over(x=vc, y=tract) 
-     
-    
-
-# Animated Plot
-
-
-## The animated plot 
-#plot_geo(Violent) %>%
-#add_trace ( 
-  #x = Violent$Longitude, y = Violent$Latitude, 
-  #z = Violent$`Primary Type` ,  colors = "Blues", 
-  #text = "idk", marker = list(line = l)) %>%
-  #colorbar( title = "Chicago Crime")
-
-     
-     
-     
-  
-  #tract =  shapefile("geo_export_1cecd1d2-ae2d-4c08-a216-6154cbcc2077")
-  #tract <- spTransform(x=tract, CRSobj=CRS("+proj=longlat +datum=WGS84"))
-
-
-
-
-
-# spreading 
-# plot(sort(VType$date), VType$Count, type = "l")
-
-
-
-
-
-
 # Resources Used:
 # https://stackoverflow.com/questions/33221425/how-do-i-group-my-date-variable-into-month-year-in-r
 # https://stackoverflow.com/questions/29872109/binning-longitude-latitude-labeled-data-by-census-block-id
