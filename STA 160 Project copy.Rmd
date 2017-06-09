@@ -62,6 +62,11 @@ attach(la_violent)
 la_violent = subset(la_violent, lon < -118.1)
 
 attach(la_violent)
+
+#Creating Year column
+Year = substr(Date.Occurred, 7, 10)
+la_violent["Year"] <- Year
+attach(la_violent)
 ```
 
 DATA EXPLORATION
@@ -84,63 +89,76 @@ tract <- spTransform(x=tract, CRSobj=CRS("+proj=longlat +datum=WGS84"))
 #tract <- fortify(tract, region = "GEOID10")
 
 #Subsetting crimes by year
-la_2010 = subset(la_violent, Year = "2010")
-la_2011 = subset(la_violent, Year = "2011")
-la_2012 = subset(la_violent, Year = "2012")
-la_2013 = subset(la_violent, Year = "2013")
-la_2014 = subset(la_violent, Year = "2014")
-la_2015 = subset(la_violent, Year = "2015")
-la_2016 = subset(la_violent, Year = "2016")
-la_2017 = subset(la_violent, Year = "2017")
+la_2010 = subset(la_violent, Year == "2010")
+la_2011 = subset(la_violent, Year == "2011")
+la_2012 = subset(la_violent, Year == "2012")
+la_2013 = subset(la_violent, Year == "2013")
+la_2014 = subset(la_violent, Year == "2014")
+la_2015 = subset(la_violent, Year == "2015")
+la_2016 = subset(la_violent, Year == "2016")
+la_2017 = subset(la_violent, Year == "2017")
 
 #Subsetting data
-lonlat.df10 <- data.frame(lat = la_2010$lat, lon = la_2010$lon)
-lonlat.df11 <- data.frame(lat = la_2011$lat, lon = la_2011$lon)
-lonlat.df12 <- data.frame(lat = la_2012$lat, lon = la_2012$lon)
-lonlat.df13 <- data.frame(lat = la_2013$lat, lon = la_2013$lon)
-lonlat.df14 <- data.frame(lat = la_2014$lat, lon = la_2014$lon)
-lonlat.df15 <- data.frame(lat = la_2015$lat, lon = la_2015$lon)
-lonlat.df16 <- data.frame(lat = la_2016$lat, lon = la_2016$lon)
-lonlat.df17 <- data.frame(lat = la_2017$lat, lon = la_2017$lon)
+
+lonlat <- function(x) {
+  y = data.frame(lat = x$lat, lon = x$lon)
+  return(y)
+}
+
+lonlat.df10 <- lonlat(la_2010)
+lonlat.df11 <- lonlat(la_2011)
+lonlat.df12 <- lonlat(la_2012)
+lonlat.df13 <- lonlat(la_2013)
+lonlat.df14 <- lonlat(la_2014)
+lonlat.df15 <- lonlat(la_2015)
+lonlat.df16 <- lonlat(la_2016)
+lonlat.df17 <- lonlat(la_2017)
 
 #Converting data into a spatial points object
-la_spdf10 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
-                                  data=la_2010, proj4string=CRS("+proj=longlat +datum=WGS84"))
-la_spdf11 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
-                                  data=la_2011, proj4string=CRS("+proj=longlat +datum=WGS84"))
-la_spdf12 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
-                                  data=la_2012, proj4string=CRS("+proj=longlat +datum=WGS84"))
-la_spdf13 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
-                                  data=la_2013, proj4string=CRS("+proj=longlat +datum=WGS84"))
-la_spdf14 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
-                                  data=la_2014, proj4string=CRS("+proj=longlat +datum=WGS84"))
-la_spdf15 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
-                                  data=la_2015, proj4string=CRS("+proj=longlat +datum=WGS84"))
-la_spdf16 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
-                                  data=la_2016, proj4string=CRS("+proj=longlat +datum=WGS84"))
+spdf <- function(x,y) {
+  z = SpatialPointsDataFrame(coords=x[, c("lon", "lat")],
+                                  data=y, proj4string=CRS("+proj=longlat +datum=WGS84"))
+  return(z)
+}
 
-la_spdf17 <- SpatialPointsDataFrame(coords=lonlat.df[, c("lon", "lat")],
-                                  data=la_2017, proj4string=CRS("+proj=longlat +datum=WGS84"))
+la_spdf10 <- spdf(lonlat.df10, la_2010)
+la_spdf11 <- spdf(lonlat.df11, la_2011)
+la_spdf12 <- spdf(lonlat.df12, la_2012)
+la_spdf13 <- spdf(lonlat.df13, la_2013)
+la_spdf14 <- spdf(lonlat.df14, la_2014)
+la_spdf15 <- spdf(lonlat.df15, la_2015)
+la_spdf16 <- spdf(lonlat.df16, la_2016)
+la_spdf17 <- spdf(lonlat.df17, la_2017)
 
 #Adding count column (each row is one crime incident)
-la_spdf10@data$count <- 1
-la_spdf11@data$count <- 1
-la_spdf12@data$count <- 1
-la_spdf13@data$count <- 1
-la_spdf14@data$count <- 1
-la_spdf15@data$count <- 1
-la_spdf16@data$count <- 1
-la_spdf17@data$count <- 1
+spdf.list = list(la_spdf10,la_spdf11,la_spdf12,la_spdf13,la_spdf14,la_spdf15,la_spdf16,la_spdf17)
+
+spdf <- function(x) {
+  x@data$count <- 1
+  return(x)
+}
+
+spdf.list <- lapply(spdf.list, spdf)
 
 #Spatial overlay to identify census polygon in which each crime point falls
-la_spdf_tract10 <- over(x=la_spdf10, y=tract)
-la_spdf_tract11 <- over(x=la_spdf11, y=tract)
-la_spdf_tract12 <- over(x=la_spdf12, y=tract)
-la_spdf_tract13 <- over(x=la_spdf13, y=tract)
-la_spdf_tract14 <- over(x=la_spdf14, y=tract)
-la_spdf_tract15 <- over(x=la_spdf15, y=tract)
-la_spdf_tract16 <- over(x=la_spdf16, y=tract)
-la_spdf_tract17 <- over(x=la_spdf17, y=tract)
+la_spdf_tract10 <- over(x=spdf.list[[1]], y=tract)
+la_spdf_tract11 <- over(x=spdf.list[[2]], y=tract)
+la_spdf_tract12 <- over(x=spdf.list[[3]], y=tract)
+la_spdf_tract13 <- over(x=spdf.list[[4]], y=tract)
+la_spdf_tract14 <- over(x=spdf.list[[5]], y=tract)
+la_spdf_tract15 <- over(x=spdf.list[[6]], y=tract)
+la_spdf_tract16 <- over(x=spdf.list[[7]], y=tract)
+la_spdf_tract17 <- over(x=spdf.list[[8]], y=tract)
+
+#Reassigning/delisting for ease of use
+la_spdf10 = spdf.list[[1]]
+la_spdf11 = spdf.list[[2]]
+la_spdf12 = spdf.list[[3]]
+la_spdf13 = spdf.list[[4]]
+la_spdf14 = spdf.list[[5]]
+la_spdf15 = spdf.list[[6]]
+la_spdf16 = spdf.list[[7]]
+la_spdf17 = spdf.list[[8]]
 
 #Adding tract data to crime points
 la_spdf10@data <- data.frame(la_spdf10@data, la_spdf_tract10)
@@ -153,27 +171,75 @@ la_spdf16@data <- data.frame(la_spdf16@data, la_spdf_tract16)
 la_spdf17@data <- data.frame(la_spdf17@data, la_spdf_tract17)
 
 #Aggregate crimes by tract
-crime_tract10 <- aggregate(formula=count~GEOID10, data=la_spdf10@data, FUN=length)
-crime_tract11 <- aggregate(formula=count~GEOID10, data=la_spdf11@data, FUN=length)
-crime_tract12 <- aggregate(formula=count~GEOID10, data=la_spdf12@data, FUN=length)
-crime_tract13 <- aggregate(formula=count~GEOID10, data=la_spdf13@data, FUN=length)
-crime_tract14 <- aggregate(formula=count~GEOID10, data=la_spdf14@data, FUN=length)
-crime_tract15 <- aggregate(formula=count~GEOID10, data=la_spdf15@data, FUN=length)
-crime_tract16 <- aggregate(formula=count~GEOID10, data=la_spdf16@data, FUN=length)
-crime_tract17 <- aggregate(formula=count~GEOID10, data=la_spdf17@data, FUN=length)
+agg = function(x) {
+  y = aggregate(formula=count~GEOID10+Year, data=x@data, FUN=length)
+  return(y)
+}
 
-#Adding Year column to each crime_tract dataframe
-year10 <- rep("2010-12-31")
-year11 <- rep("2011-12-31")
-year12 <- rep("2012-12-31")
-year13 <- rep("2013-12-31")
-year14 <- rep("2014-12-31")
-year15 <- rep("2015-12-31")
-year16 <- rep("2016-12-31")
-year17 <- rep("2017-12-31")
+ct10 <- agg(la_spdf10)
+ct11 <- agg(la_spdf11)
+ct12 <- agg(la_spdf12)
+ct13 <- agg(la_spdf13)
+ct14 <- agg(la_spdf14)
+ct15 <- agg(la_spdf15)
+ct16 <- agg(la_spdf16)
+ct17 <- agg(la_spdf17)
 
-cbind()
+#Merging all elements in ct.list
+ct.list <- list(ct10,ct11,ct12,ct13,ct14,ct15,ct16,ct17)
+ct = ct.list[[1]]
+for (i in 2:length(ct.list)) {
+  ct = rbind(ct, ct.list[[i]])
+  i = i+1
+}
 
+#Sorting ct by Tract ID, then by Year (descending)
+ct = sqldf("SELECT * FROM ct ORDER BY GEOID10, Year DESC;")
+
+#Help from: http://rmaps.github.io/blog/posts/animated-choropleths/
+#Discretizing crime counts. We will assign 5 quantiles to the continuous values of "count" (counts of crimes)
+ct2 <- transform(ct,
+  fillKey = cut(count, quantile(count, seq(0, 1, 1/5)), labels = LETTERS[1:5])
+)
+
+#Associating fill colors
+fills = setNames(
+  c(RColorBrewer::brewer.pal(5, 'YlOrRd'), 'white'),
+  c(LETTERS[1:5], 'defaultFill')
+)
+
+#Creating payload for DataMaps
+#According to help source: "The data frame needs to be converted into a list of lists, as it is the default data structure that the DataMaps library accepts."
+
+library(plyr)
+require(devtools)
+install_github('ramnathv/rCharts@dev')
+install_github('ramnathv/rMaps')
+library(rMaps)
+library(rCharts)
+
+dat2 <- dlply(na.omit(ct2), "Year", function(x){
+  y = toJSONArray2(x, json = F)
+  names(y) = lapply(y, '[[', 'GEOID10')
+  return(y)
+})
+
+#Visualizing as a simple chloropleth
+options(rcharts.cdn = TRUE)
+map10 <- Datamaps$new()
+map10$set(
+  dom = 'chart_1',
+  scope = 'los angeles',
+  fills = fills,
+  data = dat2[[1]],
+  legend = TRUE,
+  labels = TRUE
+)
+map10
+```
+
+Separate mapping step
+```{r}
 #Help source: http://www.kevjohnson.org/making-maps-in-r/
 #Joining crime_tract and tract on tract id's
 colnames(tract)[6] = "GEOID10"
