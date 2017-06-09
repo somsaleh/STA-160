@@ -223,6 +223,19 @@ dat2 <- dlply(na.omit(ct2), "Year", function(x){
   names(y) = lapply(y, '[[', 'GEOID10')
   return(y)
 })
+
+#Visualizing as a simple chloropleth
+options(rcharts.cdn = TRUE)
+map10 <- Datamaps$new()
+map10$set(
+  dom = 'chart_1',
+  scope = 'los angeles',
+  fills = fills,
+  data = dat2[[1]],
+  legend = TRUE,
+  labels = TRUE
+)
+map10
 ```
 
 Separate mapping step
