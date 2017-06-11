@@ -4,7 +4,6 @@ author: "Jessica Padolina"
 date: "4/30/2017"
 output: html_document
 ---
-Mapping Crimes in Major Cities
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -12,40 +11,274 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r, echo = FALSE}
 setwd("/Users/Jessica/Documents/Stats Stuff/STA-160")
 la_crime = read.csv("la_crime.csv")
-
-#Renaming variables for convenience
-names(la_crime)[24]="Location"
-names(la_crime)[26]="Coordinates"
 ```
-
-Subsetting violent and drug-related crimes only
-
-We only want the following crime codes:
-{231,230,220,118,622,623,860,840,755,761,235,627,922,110,930,943,753,865,434,910,920,435,436,113,625,122,121,210,815,251,250,236,626,928,756}
-These codes are violent crimes, so this list will be called "violent_index"
 
 CLEANING DATA
 ```{r}
-#Subsetting the data to contain violent and drug-related crimes only
-library(sqldf)
-#Renaming variables for sqldf()
-names(la_crime)[8] = "Crime_Code"
-names(la_crime)[9] = "Crime_Code_Desc"
+#Subsetting the data to contain violent crimes only
 
-#Matching distinct crime codes to their descriptions
-s = sqldf("SELECT DISTINCT Crime_Code, Crime_Code_Desc 
-          FROM la_crime 
-          GROUP BY Crime_Code_Desc")
+la_violent = subset(la_crime, la_crime$Crime.Code.Desc %in% 
+                     c("ASSAULT WITH DEADLY WEAPON ON POLICE OFFICER","ASSAULT WITH                         DEADLY WEAPON, AGGRAVATED ASSAULT", "ASSAULT", "BATTERY -                           SIMPLE ASSAULT", "BATTERY ON A FIREFIGHTER",
+                       "BATTERY POLICE (SIMPLE)", "BATTERY WITH SEXUAL CONTACT",                           "BATTERY", "CRIMINAL HOMICIDE",
+                       "MANSLAUGHTER, NEGLIGENT", "HOMICIDE", "ROBBERY"))
 
-#Subsetting data by crime codes in the above index
-la_violent = sqldf("SELECT * FROM la_crime
-                   WHERE Crime_Code IN (231,230,220,118,622,623,860,840,755,761,235,627,922,110,930,943,753,865,434,910,920,435,436,113,625,122,121,210,815,251,250,236,626,928,756)")
+#Create pattern for Assault, Battery, and Homicide
+#Robberies already correspond to one Crime.Code.Desc string, so no pattern necessary
+pathA = "ASSAULT WITH DEADLY WEAPON ON POLICE OFFICER|ASSAULT WITH DEADLY WEAPON, AGGRAVATED ASSAULT" # Assault pathway
 
-attach(la_violent)
+pathB = "BATTERY - SIMPLE ASSAULT|BATTERY ON A FIREFIGHTER|BATTERY POLICE \\(SIMPLE\\)|BATTERY WITH SEXUAL CONTACT" # Battery Pathway"
+  
+pathH = "CRIMINAL HOMICIDE|MANSLAUGHTER, NEGLIGENT" # Homicide Pathway" 
+  
+# Now use gsub() to replace each pattern with standardized crimet type
+la_violent$Crime.Code.Desc = gsub(pathA, "ASSAULT", la_violent$Crime.Code.Desc) # sub for Assault
 
-#Splitting the Coordinates column into two lat and lon columns (character   matrix)
+la_violent$Crime.Code.Desc = gsub(pathB, "BATTERY", la_violent$Crime.Code.Desc) # sub for Battery
+
+la_violent$Crime.Code.Desc = gsub(pathH, "HOMICIDE", la_violent$Crime.Code.Desc) # sub for Homicide
+
+#Splitting Coordinates column
 library(stringr)
-latlon = str_split_fixed(Coordinates, " ", 2)
+latlon = str_split_fixed(la_violent$Location.1, " ", 2)
+latlon[,1] = gsub("\\(", "", latlon[,1])
+latlon[,1] = gsub(",", "", latlon[,1])
+latlon[,2] = gsub("\\)", "", latlon[,2])
+
+#Converting to numeric class
+latlon = apply(latlon, 2, as.numeric)
+
+#Creating Year column
+Year = substr(la_violent$Date.Occurred, 7, 10)
+la_violent["Year"] <- Year
+```
+
+PLOTS
+```{r}
+#TABLE OF COUNTS OF CRIME PER TYPE
+table(la_violent$Crime.Code.Desc)
+
+#TIME PLOT OF ALL VIOLENT CRIME OVER TIME
+#Group by Month and Year and create a new column
+Mon = substr(la_violent$Date.Occurred, 1,2)
+Year = substr(la_violent$Date.Occurred, 7, 10)
+
+MonYr = paste(Mon, Year, sep = "/")
+la_violent["MonYr"] <- MonYr
+
+VCount = table(la_violent$MonYr)
+VCount = data.frame(VCount)
+
+#Change column names
+colnames(VCount) = c("Date", "Count")
+
+# Change the class of the variable 
+VCount$Date = as.character(VCount$Date)
+
+# Create a function to create a new date column
+# original Date varaible is month/year
+# we want to change it month/1 ( day)/ year
+# reason: way to aggregate the data
+
+monthly = function(data_col) {
+  split_dates = strsplit(data_col, "/") # will split the month/year
+  new_dates = sapply(split_dates, function(x) { 
+    new_date = paste0(x[2], "-", x[1], "-01") # this adds the new date 
+    new_date # now we have our new date = month/01/year
+  })
+  as.Date(new_dates)
+}
+
+VCount$Date = monthly(as.character(VCount$Date)) # run the Monthly function, variable must be a character
+
+# order the dates
+VCount = VCount[order(VCount$Date), ]
+
+# Create the Time Series plot
+TimeSeriesPlot = 
+  plot_ly(VCount, x = VCount$Date, y = VCount$Count, 
+          type = "scatter", mode = "lines", name = "Crime Count", line = list(color = 'rgba(67,67,67,1)', width = 2)) %>%
+  layout(title = "Violent Crime 2010-2017",
+         xaxis = list(title = "Date"), 
+         yaxis = list(title = "Count")
+  )
+
+TimeSeriesPlot
+
+#BAR CHARTS SHOWING COUNTS PER AREA
+#Subset the data by type of Violent Crime
+Assault = subset(la_violent, la_violent$Crime.Code.Desc ==  "ASSAULT")
+Battery = subset(la_violent, la_violent$Crime.Code.Desc ==  "BATTERY")
+Homicide = subset(la_violent, la_violent$Crime.Code.Desc ==  "HOMICIDE")
+Robbery = subset(la_violent, la_violent$Crime.Code.Desc ==  "ROBBERY")
+
+
+# Step 1) 
+#  * Table to Dataframe Function * # 
+
+vType = function(VTypeName, dataVar1, dataVar2){
+  # create table by year
+  VTypeName = table(dataVar1, dataVar2)   
+  
+  # create dataset for the table
+  VTypeName = data.frame(VTypeName)
+  
+  # change column names
+  colnames(VTypeName) = c("Area", "Year", "Count") 
+  
+  ## Pivot the table 
+  Pivot = spread(VTypeName, Year, Count) 
+  Pivot
+}
+
+
+# Step 2
+# Now create the pivoted data frames for each violent crime
+BPivot = vType(BType, Battery$Area.Name , Battery$Year)   # Battery
+APivot = vType(AType, Assault$Area.Name , Assault$Year)   # Assault
+HPivot = vType(HType, Homicide$Area.Name, Homicide$Year)  # Homicide
+RPivot = vType(RType, Robbery$Area.Name , Robbery$Year)   # Robbery 
+
+
+#Step 3
+#  * Barchart Function * # 
+# The function will later be used for the 4 diff violent crimes
+
+ChartFunc =  
+  # The function will read in each pivoted df
+  # input each Var1 etc represent each var per year in the df
+  function(chartName, titleName, data, dataVar1, dataVar2,
+           dataVar3, dataVar4, dataVar5, dataVar6,
+           dataVar7, dataVar8, dataVar9) { 
+    
+    chartName = 
+      
+      # use Plot_ly functions
+      plot_ly(data, x = dataVar1) %>%
+      add_bars(y = dataVar2, name = "2010") %>% # allows you to continue and start new line 
+      add_bars(y = dataVar3, name = "2011", visible = FALSE) %>% # add each bar for each year
+      add_bars(y = dataVar4, name = "2012", visible = FALSE) %>%
+      add_bars(y = dataVar5, name = "2013", visible = FALSE) %>%
+      add_bars(y = dataVar6, name = "2014", visible = FALSE) %>%
+      add_bars(y = dataVar7, name = "2015", visible = FALSE) %>%
+      add_bars(y = dataVar8, name = "2016", visible = FALSE) %>%
+      add_bars(y = dataVar9, name = "2017", visible = FALSE) %>%
+  
+      layout(
+        # Set up the layout 
+        title = titleName, 
+        xaxis = list(domain = c(0.1, 1)),
+        yaxis = list(title = "Frequency"),
+        updatemenus = list(
+          list(
+            y = 0.7,
+            
+            # Set up the drop down button per year
+            # this will allow the user to control which year to view at a time
+            
+            buttons = list(
+              list(method = "restyle",
+                   args = list("visible", list(TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE)),
+                   
+                   label = "2010"),
+              list(method = "restyle",
+                   args = list("visible", list(FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE)),
+                   label = "2011"),
+              list(method = "restyle",
+                   args = list("visible", list(FALSE, FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE)),
+                   label = "2012"),
+              list(method = "restyle",
+                   args = list("visible", list(FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, FALSE, FALSE)),
+                   label = "2013"),
+              list(method = "restyle",
+                   args = list("visible", list(FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, FALSE)),
+                   label = "2014"),
+              list(method = "restyle",
+                   args = list("visible", list(FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE)),
+                   label = "2015"),
+              list(method = "restyle",
+                   args = list("visible", list(FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE)),
+                   label = "2016"),
+              list(method = "restyle",
+                   args = list("visible", list(FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, TRUE)),
+                   label = "2017")))
+        )
+      ) 
+    chartName
+  }
+
+# Step 4
+# Output for the barchart per Violent Crime
+
+AssaultChart = 
+  ChartFunc(AssaultChart2, "Crimes per Community Area",  
+            APivot, APivot$Area, APivot$`2010`, APivot$`2011`,
+            APivot$`2012`, APivot$`2013`, APivot$`2014`, 
+            APivot$`2015`, APivot$`2016`, APivot$`2017`)
+
+BatteryChart = 
+  ChartFunc(BatteryChart2, "Crimes per Community Area",
+            BPivot, BPivot$Area, BPivot$`2010`, BPivot$`2011`,
+            BPivot$`2012`, BPivot$`2013`, BPivot$`2014`, 
+            BPivot$`2015`, BPivot$`2016`, BPivot$`2017`)
+
+HomicideChart = 
+  ChartFunc(HomicideChart2, "Crimes per Community Area",
+            HPivot, HPivot$Area, HPivot$`2010`, HPivot$`2011`,
+            HPivot$`2012`, HPivot$`2013`, HPivot$`2014`, 
+            HPivot$`2015`, HPivot$`2016`, HPivot$`2017`)
+
+RobberyChart = 
+  ChartFunc(RobberyChart2, "Crimes per Community Area",
+            RPivot, RPivot$Area, RPivot$`2010`, RPivot$`2011`,
+            RPivot$`2012`, RPivot$`2013`, RPivot$`2014`,
+            RPivot$`2015`, RPivot$`2016`, RPivot$`2017`)
+
+p <- subplot(AssaultChart, BatteryChart, HomicideChart, RobberyChart)
+p
+
+
+#TIME SERIES PLOT BROKEN DOWN BY TYPE OF CRIME
+VType = table(la_violent$Crime.Code.Desc, la_violent$MonYr)
+VType = data.frame(VType)
+
+# Change the column names
+colnames(VType) = c("Type", "Date", "Count")
+
+# Change the class of the variable 
+VType$Date = as.character(VType$Date)
+
+VType$Date = monthly(as.character(VType$Date)) # run the Monthly function, variable must be a character
+
+# Tidy R  pivot the data frame
+VPivot = spread(VType, Type, Count)
+
+# order the dates
+VPivot = VPivot[order(VPivot$Date), ]
+
+# Create the Time Series plot
+TimeSeriesPlot2 = 
+  plot_ly(VPivot, x = VPivot$Date, y = VPivot$ASSAULT, 
+          type = "scatter", mode = "lines", name = "Assault", line = list(color = 'rgba(67,67,67,1)', width = 2)) %>%
+  # add the remaining response variables variables to the plot
+  add_trace(y = VPivot$BATTERY, name = "Battery", modes = "lines", 
+            line = list(color = "dark blue"), width = 2 ) %>%
+  add_trace(y = VPivot$HOMICIDE, name = "Homicide", modes = "lines", 
+            line = list(color = "purple")) %>%
+  add_trace(y = VPivot$ROBBERY, name = "Robbery", modes = "lines", 
+            line = list(color = "blue")) %>%
+  layout(title = "Violent Crime by Type 2010-2017",
+         xaxis = list(title = "Date"), 
+         yaxis = list(title = "Count")
+  )
+
+TimeSeriesPlot2
+```
+
+PREPARING DATA FOR MAPPING
+```{r}
+#Splitting the Coordinates column into two lat and lon columns (character matrix)
+library(stringr)
+latlon = str_split_fixed(la_violent$Coordinates, " ", 2)
 latlon[,1] = gsub("\\(", "", latlon[,1])
 latlon[,1] = gsub(",", "", latlon[,1])
 latlon[,2] = gsub("\\)", "", latlon[,2])
@@ -195,7 +428,58 @@ for (i in 2:length(ct.list)) {
 
 #Sorting ct by Tract ID, then by Year (descending)
 ct = sqldf("SELECT * FROM ct ORDER BY GEOID10, Year DESC;")
+```
 
+Trying various animated choropleth tutorials
+```{r}
+#Help from: https://gist.github.com/LaDilettante/5855730
+rm(list=ls())
+toInstall <- c("ggplot2", "maptools", "animation", "rgdal")
+lapply(toInstall, library, character.only=TRUE)
+
+#Load tract shape file
+tract <- fortify(tract, region = "GEOID10")
+
+# Plot
+
+saveSWF({ # Output a flash
+  for (i in c(2010:2017)) {
+    temp <- subset(na.omit(la_violent[, c('DR.Number','Crime_Code','','year', 'country', 'cc_est')]), year==i)
+    choro <- merge(world.ggmap, temp, by.x="id", by.y="country")
+    choro <- choro[order(choro$order), ] # order matters in map data, so we must reorder
+    p <- ggplot(data=choro, aes(long, lat, fill=cc_est, group=group))
+    print(
+      p + geom_polygon() + ylim(c(-60,85)) + # Fix the y-axis range for consistency between the years
+        scale_fill_gradient2("Control of\n corruption\n score", limits=c(-2.5,2.5)) + # Use scale_fill_gradient2 for contrast
+        labs(title=substitute(paste("Severity of corruption in the world, year ", i), list(i=i)))
+    )
+  }
+}, swf.name="world_corruption.swf", interval=1,
+        ani.width=1200, ani.height=600,
+        swftools="C:/Program Files (x86)/SWFTools",
+         outdir=getwd())
+
+saveLatex({ # Output a pdf that can be embedded in latex documents
+  for (i in c(1996, 1998, 2000, 2002:2011)) {
+    temp <- subset(na.omit(wgi[, c('year', 'country', 'cc_est')]), year==i)
+    choro <- merge(world.ggmap, temp, by.x="id", by.y="country")
+    choro <- choro[order(choro$order), ]
+    p <- ggplot(data=choro, aes(long, lat, fill=cc_est, group=group))
+    print(
+      p + geom_polygon() + ylim(c(-60,85)) +
+        scale_fill_gradient2("Control of\n corruption\n score", limits=c(-2.5,2.5)) + 
+        labs(title=substitute(paste("Severity of corruption in the world, year ", i), list(i=i)))
+    )
+  }
+}, ani.basename = "world_corruption", interval=1,
+          ani.width=900, ani.height=450,
+          ani.opts="autoplay,loop,controls,width=\\linewidth",
+          latex.filename = "world.corruption.tex",
+outdir=getwd())
+
+```
+
+```{r}
 #Help from: http://rmaps.github.io/blog/posts/animated-choropleths/
 #Discretizing crime counts. We will assign 5 quantiles to the continuous values of "count" (counts of crimes)
 ct2 <- transform(ct,
@@ -229,7 +513,7 @@ options(rcharts.cdn = TRUE)
 map10 <- Datamaps$new()
 map10$set(
   dom = 'chart_1',
-  scope = 'los angeles',
+  scope = 'usa',
   fills = fills,
   data = dat2[[1]],
   legend = TRUE,
@@ -280,13 +564,6 @@ Animating counts of crimes per tract over time
 #2. Combine all crime_tract dataframes into one yearly_counts dataframe
 
 ```
-
-CLEANING DATA
-```{r}
-#Creating Year column
-Year = substr(Date.Occurred, 7, 10)
-la_violent["Year"] <- Year
-attach(la_violent)
 
 #Possible next steps:
 #Center maps
