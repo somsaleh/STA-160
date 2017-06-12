@@ -168,6 +168,7 @@ ChartFunc =
         title = titleName, 
         xaxis = list(domain = c(0.1, 1)),
         yaxis = list(title = "Frequency"),
+        showlegend = FALSE,
         updatemenus = list(
           list(
             y = 0.7,
@@ -210,25 +211,25 @@ ChartFunc =
 # Output for the barchart per Violent Crime
 
 AssaultChart = 
-  ChartFunc(AssaultChart2, "Crimes per Community Area",  
+  ChartFunc(AssaultChart2, "Assault, Battery, Homicide, and Robbery per Community Area",  
             APivot, APivot$Area, APivot$`2010`, APivot$`2011`,
             APivot$`2012`, APivot$`2013`, APivot$`2014`, 
             APivot$`2015`, APivot$`2016`, APivot$`2017`)
 
 BatteryChart = 
-  ChartFunc(BatteryChart2, "Crimes per Community Area",
+  ChartFunc(BatteryChart2, "Assault, Battery, Homicide, and Robbery per Community Area",
             BPivot, BPivot$Area, BPivot$`2010`, BPivot$`2011`,
             BPivot$`2012`, BPivot$`2013`, BPivot$`2014`, 
             BPivot$`2015`, BPivot$`2016`, BPivot$`2017`)
 
 HomicideChart = 
-  ChartFunc(HomicideChart2, "Crimes per Community Area",
+  ChartFunc(HomicideChart2, "Assault, Battery, Homicide, and Robbery per Community Area",
             HPivot, HPivot$Area, HPivot$`2010`, HPivot$`2011`,
             HPivot$`2012`, HPivot$`2013`, HPivot$`2014`, 
             HPivot$`2015`, HPivot$`2016`, HPivot$`2017`)
 
 RobberyChart = 
-  ChartFunc(RobberyChart2, "Crimes per Community Area",
+  ChartFunc(RobberyChart2, "Assault, Battery, Homicide, and Robbery per Community Area",
             RPivot, RPivot$Area, RPivot$`2010`, RPivot$`2011`,
             RPivot$`2012`, RPivot$`2013`, RPivot$`2014`,
             RPivot$`2015`, RPivot$`2016`, RPivot$`2017`)
@@ -274,32 +275,32 @@ TimeSeriesPlot2 =
 TimeSeriesPlot2
 ```
 
-PREPARING DATA FOR MAPPING
+ANALYSIS OF SES DATA
 ```{r}
-#Splitting the Coordinates column into two lat and lon columns (character matrix)
-library(stringr)
-latlon = str_split_fixed(la_violent$Coordinates, " ", 2)
-latlon[,1] = gsub("\\(", "", latlon[,1])
-latlon[,1] = gsub(",", "", latlon[,1])
-latlon[,2] = gsub("\\)", "", latlon[,2])
+# Plotting time series plot for socioeconomic variables
+socioeconla <- read.csv("SocioEconLA.csv")
+socioeconla <- socioeconla[,c("Year","PopEst","HSEnr","MedIncome","Poverty","Unemp.1")]
 
-#Converting to numeric class
-latlon = apply(latlon, 2, as.numeric)
+## Time Series Plot for Socioeconomic Factors in Los Angeles
 
-#Binding new latlon matrix to la_violent dataframe
-la_violent[,c("lat","lon")] <- latlon
+# Create the Time Series plot
+tsplot3 = plot_ly(socioeconla, x = socioeconla$Year, y = socioeconla$PopEst, 
+                 type = "scatter", mode = "lines", name = "Population Estimate", line = list(color = 'rgba(67,67,67,1)', width = 2)) %>%
+  #Add the remaining response variables to the plot
+  add_trace(y = socioeconla$HSEnr, name = "High School Enrollment", modes = "lines", 
+            line = list(color = "dark blue"), width = 2 ) %>%
+  add_trace(y = socioeconla$MedIncome, name = "Median Household Income ($)", modes = "lines", 
+            line = list(color = "purple")) %>%
+  add_trace(y = socioeconla$Poverty, name = "Population in Poverty", modes = "lines", 
+            line = list(color = "blue")) %>%
+  add_trace(y = socioeconla$Unemp.1, name = "Unemployed (16+)", modes = "lines", 
+          line = list(color = "green")) %>%
+    layout(title = "Los Angeles Socioeconomic Factors 2010-2017",
+         xaxis = list(title = "Year"), 
+         yaxis = list(title = "Population (or $)")
+  )
 
-attach(la_violent)
-
-#Deleting outliers (too far east of main incidences)
-la_violent = subset(la_violent, lon < -118.1)
-
-attach(la_violent)
-
-#Creating Year column
-Year = substr(Date.Occurred, 7, 10)
-la_violent["Year"] <- Year
-attach(la_violent)
+tsplot3
 ```
 
 DATA EXPLORATION
@@ -319,7 +320,6 @@ library(Cairo)
 #Help from: https://stackoverflow.com/questions/29872109/binning-longitude-latitude-labeled-data-by-census-block-id (Code "Version 1")
 tract <- readOGR(dsn = ".", layer = "census2010")
 tract <- spTransform(x=tract, CRSobj=CRS("+proj=longlat +datum=WGS84"))
-#tract <- fortify(tract, region = "GEOID10")
 
 #Subsetting crimes by year
 la_2010 = subset(la_violent, Year == "2010")
@@ -332,7 +332,6 @@ la_2016 = subset(la_violent, Year == "2016")
 la_2017 = subset(la_violent, Year == "2017")
 
 #Subsetting data
-
 lonlat <- function(x) {
   y = data.frame(lat = x$lat, lon = x$lon)
   return(y)
@@ -426,160 +425,88 @@ for (i in 2:length(ct.list)) {
   i = i+1
 }
 
-#Sorting ct by Tract ID, then by Year (descending)
-ct = sqldf("SELECT * FROM ct ORDER BY GEOID10, Year DESC;")
-```
-
-Trying various animated choropleth tutorials
-```{r}
-#Help from: https://gist.github.com/LaDilettante/5855730
-rm(list=ls())
-toInstall <- c("ggplot2", "maptools", "animation", "rgdal")
-lapply(toInstall, library, character.only=TRUE)
-
-#Load tract shape file
-tract <- fortify(tract, region = "GEOID10")
-
-# Plot
-
-saveSWF({ # Output a flash
-  for (i in c(2010:2017)) {
-    temp <- subset(na.omit(la_violent[, c('DR.Number','Crime_Code','','year', 'country', 'cc_est')]), year==i)
-    choro <- merge(world.ggmap, temp, by.x="id", by.y="country")
-    choro <- choro[order(choro$order), ] # order matters in map data, so we must reorder
-    p <- ggplot(data=choro, aes(long, lat, fill=cc_est, group=group))
-    print(
-      p + geom_polygon() + ylim(c(-60,85)) + # Fix the y-axis range for consistency between the years
-        scale_fill_gradient2("Control of\n corruption\n score", limits=c(-2.5,2.5)) + # Use scale_fill_gradient2 for contrast
-        labs(title=substitute(paste("Severity of corruption in the world, year ", i), list(i=i)))
-    )
-  }
-}, swf.name="world_corruption.swf", interval=1,
-        ani.width=1200, ani.height=600,
-        swftools="C:/Program Files (x86)/SWFTools",
-         outdir=getwd())
-
-saveLatex({ # Output a pdf that can be embedded in latex documents
-  for (i in c(1996, 1998, 2000, 2002:2011)) {
-    temp <- subset(na.omit(wgi[, c('year', 'country', 'cc_est')]), year==i)
-    choro <- merge(world.ggmap, temp, by.x="id", by.y="country")
-    choro <- choro[order(choro$order), ]
-    p <- ggplot(data=choro, aes(long, lat, fill=cc_est, group=group))
-    print(
-      p + geom_polygon() + ylim(c(-60,85)) +
-        scale_fill_gradient2("Control of\n corruption\n score", limits=c(-2.5,2.5)) + 
-        labs(title=substitute(paste("Severity of corruption in the world, year ", i), list(i=i)))
-    )
-  }
-}, ani.basename = "world_corruption", interval=1,
-          ani.width=900, ani.height=450,
-          ani.opts="autoplay,loop,controls,width=\\linewidth",
-          latex.filename = "world.corruption.tex",
-outdir=getwd())
-
-```
-
-```{r}
-#Help from: http://rmaps.github.io/blog/posts/animated-choropleths/
-#Discretizing crime counts. We will assign 5 quantiles to the continuous values of "count" (counts of crimes)
-ct2 <- transform(ct,
-  fillKey = cut(count, quantile(count, seq(0, 1, 1/5)), labels = LETTERS[1:5])
-)
-
-#Associating fill colors
-fills = setNames(
-  c(RColorBrewer::brewer.pal(5, 'YlOrRd'), 'white'),
-  c(LETTERS[1:5], 'defaultFill')
-)
-
-#Creating payload for DataMaps
-#According to help source: "The data frame needs to be converted into a list of lists, as it is the default data structure that the DataMaps library accepts."
-
-library(plyr)
-require(devtools)
-install_github('ramnathv/rCharts@dev')
-install_github('ramnathv/rMaps')
-library(rMaps)
-library(rCharts)
-
-dat2 <- dlply(na.omit(ct2), "Year", function(x){
-  y = toJSONArray2(x, json = F)
-  names(y) = lapply(y, '[[', 'GEOID10')
-  return(y)
-})
-
-#Visualizing as a simple chloropleth
-options(rcharts.cdn = TRUE)
-map10 <- Datamaps$new()
-map10$set(
-  dom = 'chart_1',
-  scope = 'usa',
-  fills = fills,
-  data = dat2[[1]],
-  legend = TRUE,
-  labels = TRUE
-)
-map10
-```
-
-Separate mapping step
-```{r}
 #Help source: http://www.kevjohnson.org/making-maps-in-r/
 #Joining crime_tract and tract on tract id's
-colnames(tract)[6] = "GEOID10"
-plotdata = left_join(tract, crime_tract)
+tract.points <- fortify(tract, region = "GEOID10")
+
+colnames(tract.points)[6] = "GEOID10"
+plotdata10 = left_join(tract.points, ct10)
+plotdata11 = left_join(tract.points, ct11)
+plotdata12 = left_join(tract.points, ct12)
+plotdata13 = left_join(tract.points, ct13)
+plotdata14 = left_join(tract.points, ct14)
+plotdata15 = left_join(tract.points, ct15)
+plotdata16 = left_join(tract.points, ct16)
+plotdata17 = left_join(tract.points, ct17)
 
 #Plotting for 2010
-p <- ggplot() +
-    geom_polygon(data = plotdata, aes(x = long, y = lat, group = group,
+p10 <- ggplot() +
+    geom_polygon(data = plotdata10, aes(x = long, y = lat, group = group,
         fill = count), color = "black", size = 0.25)
-ggsave(p, file = "map1.png", width = 6, height = 4.5, type = "cairo-png")
-```
+p11 <- ggplot() +
+    geom_polygon(data = plotdata11, aes(x = long, y = lat, group = group,
+        fill = count), color = "black", size = 0.25)
+p12 <- ggplot() +
+    geom_polygon(data = plotdata12, aes(x = long, y = lat, group = group,
+        fill = count), color = "black", size = 0.25)
+p13 <- ggplot() +
+    geom_polygon(data = plotdata13, aes(x = long, y = lat, group = group,
+        fill = count), color = "black", size = 0.25)
+p14 <- ggplot() +
+    geom_polygon(data = plotdata14, aes(x = long, y = lat, group = group,
+        fill = count), color = "black", size = 0.25)
+p15 <- ggplot() +
+    geom_polygon(data = plotdata15, aes(x = long, y = lat, group = group,
+        fill = count), color = "black", size = 0.25)
+p16 <- ggplot() +
+    geom_polygon(data = plotdata16, aes(x = long, y = lat, group = group,
+        fill = count), color = "black", size = 0.25)
+p17 <- ggplot() +
+    geom_polygon(data = plotdata17, aes(x = long, y = lat, group = group,
+        fill = count), color = "black", size = 0.25)
 
-Plotting LA census tracts on map object
-```{r}
+#Plotting census tracts on map object
 library(maptools)
 library(RColorBrewer)
-CArea = readShapePoly("census2010")
-CArea <- spTransform(x=tract, CRSobj=CRS("+proj=longlat +datum=WGS84"))
-area.points <- fortify(CArea)
+
 la = get_map("Los Angeles, CA")
-ggmap(la)
+la = ggmap(la)
 colors <- brewer.pal(9, "BuGn")
-ggmap(la) + geom_polygon(aes(x = long,
+la + geom_polygon(aes(x = long,
                    y = lat,
                    group = group),
-               data = area.points,
+               data = plotdata12,
                color = colors[9],
-               fill = colors[6],
+               fill = count,
                alpha = 0.5) +
   labs(x = "Longitude",
        y = "Latitude")
 ```
 
-Animating counts of crimes per tract over time
+ANALYZING SOCIOECONOMIC FACTORS
 ```{r}
-#0. Finish making crime_tract dataframes
-#1. Add date column to each crime_tract dataframe
-#2. Combine all crime_tract dataframes into one yearly_counts dataframe
+ses2 = read.csv("SESvars.csv")
+lowcrime = subset(ses2, Area == "Devonshire (San Fernando Valley)"|
+                  Area == "Hollenbeck (Central)"|
+                  Area == "Harbor"|
+                  Area == "Westside")
+hicrime = subset(ses2, Area == "Southwest"|
+                   Area == "South Bureau")  
 
-```
+ggplot(data=lowcrime, aes(x=Area, y=Val, group=Var, colour=Var)) +
+    geom_line() 
+ggplot(data=hicrime, aes(x=Area, y=Val, group=Var, colour=Var)) +
+    geom_line() 
 
-#Possible next steps:
-#Center maps
-#Include boundaries, multiple variables per map
-#Subset by type of crime
-#Do for remaining years
-#Color by gender/race of victim (ditch area id)
-#Animated plot rather than multiple plots per panel
-#Consider distorting map to account for population density (cartogram)
-#Finalize exploratory data analysis for LA
-#See what patterns you can recognize, continue analysis using that
-
-#Further subsetting by types of violent crime
-#Types: 
-
-#To include on animated plot:
-
-
+ses2sub <- subset(ses2, Var!="Pop")
+lowcrime2 = subset(ses2sub, Area == "Devonshire (San Fernando Valley)"|
+                  Area == "Hollenbeck (Central)"|
+                  Area == "Harbor"|
+                  Area == "Westside")
+hicrime2 = subset(ses2sub, Area == "Southwest"|
+                   Area == "South Bureau")
+ggplot(data=lowcrime2, aes(x=Area, y=Val, group=Var, colour=Var)) +
+    geom_line() 
+ggplot(data=hicrime2, aes(x=Area, y=Val, group=Var, colour=Var)) +
+    geom_line() 
 ```
